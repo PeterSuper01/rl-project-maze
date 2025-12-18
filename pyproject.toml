@@ -1,0 +1,21 @@
+[project]
+name = "maze"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Peter Huang",email = "petersuper03@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy (>=2.3.5,<3.0.0)",
+    "pandas (>=2.3.3,<3.0.0)",
+    "pytest (>=9.0.2,<10.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)",
+    "pydantic-settings (>=2.12.0,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
