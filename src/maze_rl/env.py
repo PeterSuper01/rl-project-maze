@@ -1,4 +1,4 @@
-"""Environment that encodes the maze scoring rules from the final exam prompt."""
+"""Environment that encodes the maze scoring rules."""
 
 from __future__ import annotations
 
