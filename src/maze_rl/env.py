@@ -15,6 +15,7 @@ _ACTION_DELTAS: dict[int, Coordinate] = {
     1: (1, 0),  # down
     2: (0, -1),  # left
     3: (0, 1),  # right
+    4: (0, 0),  # stay
 }
 
 
@@ -33,31 +34,24 @@ class MazeEnv:
         self,
         grid_path: Path | str,
         start: Coordinate = (25, 25),
-        max_steps: int | None = None,
     ) -> None:
         self.grid = load_grid_from_csv(grid_path)
         self.start = start
-        self.max_steps = max_steps
         self.grid_min = 0
         self.grid_max = self.grid.shape[0] - 1
-        self.grid_size = self.grid_max - self.grid_min + 1
         self.reset()
 
     def reset(self) -> Coordinate:
         """Reset the environment to the starting cell."""
-
-        if not self._in_bounds(self.start):
-            raise ValueError("starting coordinate is outside the allowed grid")
 
         self._state = self.start
         self.visited: set[Coordinate] = {self.start}
         self.unique_score = float(self.grid[self.start])
         self.steps = 0
         self.done = False
-        return self._state
 
     @property
-    def state(self) -> Coordinate:
+    def get_state(self) -> Coordinate:
         return self._state
 
     def step(self, action: int) -> Tuple[Coordinate, float, bool, dict]:
@@ -66,26 +60,28 @@ class MazeEnv:
         if self.done:
             raise RuntimeError("cannot step after episode is done")
 
-        if action not in _ACTION_DELTAS:
-            raise ValueError(f"invalid action {action}")
-
         delta = _ACTION_DELTAS[action]
         next_state = (self._state[0] + delta[0], self._state[1] + delta[1])
         if not self._in_bounds(next_state):
-            raise ValueError("move would leave the grid")
+            self.done = True
+            info = {
+                "unique_score": self.unique_score,
+                "steps": self.steps,
+                "final_score": self.final_score(),
+            }
+            return self._state, 0.0, True, info
 
         self._state = next_state
         self.steps += 1
 
-        reward = 0.0
         if next_state not in self.visited:
             reward = float(self.grid[next_state])
-            self.visited.add(next_state)
             self.unique_score += reward
+            self.visited.add(next_state)
+        else:
+            reward = -1.0
 
-        self.done = self._hits_boundary(next_state) or (
-            self.max_steps is not None and self.steps >= self.max_steps
-        )
+        self.done = self._hits_boundary(next_state)
 
         info = {
             "unique_score": self.unique_score,
