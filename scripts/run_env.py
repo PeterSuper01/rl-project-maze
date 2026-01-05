@@ -12,7 +12,8 @@ def main() -> None:
     env = MazeEnv(grid_path=Path(settings.maze_path) / "maze.csv")
     agent = RandomWalkAgent()
     
-    state = env.reset()
+    env.reset()
+    state = env.get_state()
     while not env.done:
         action = agent.choose_action(state, env)
         state, _, _, _ = env.step(action)
