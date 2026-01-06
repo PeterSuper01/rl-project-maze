@@ -24,14 +24,6 @@ def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> dict:
     state = env.get_state()
     while not env.done:
         action = agent.choose_action(state, training=True)
-        if action == 4:
-            env.done = True
-            info = {
-                "steps": env.steps,
-                "unique_score": env.unique_score,
-                "final_score": env.final_score(),
-            }
-            return info
         next_state, reward, done, info = env.step(action)
         agent.update_q_value(state, action, reward, next_state, done)
         state = next_state
@@ -52,16 +44,6 @@ def run_evaluation_episodes(
             print(f"Action: {action}")
 
             time.sleep(0)
-            if action == 4:
-                env.done = True
-                state = env.get_state()
-                info = {
-                    "steps": env.steps,
-                    "unique_score": env.unique_score,
-                    "final_score": env.final_score(),
-                }
-                results.append(info)
-                break
             state, _, _, info = env.step(action)
             print(f"State: {env.get_state()}")
             print(f"Info: {info}")

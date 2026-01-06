@@ -79,7 +79,7 @@ class MazeEnv:
 
         delta = _ACTION_DELTAS[action]
         next_state = (self._state[0] + delta[0], self._state[1] + delta[1])
-        if not self._in_bounds(next_state):
+        if not self._in_bounds(next_state) or delta == (0, 0):
             self.done = True
             info = {
                 "unique_score": self.unique_score,
