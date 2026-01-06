@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import pickle
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,44 +17,59 @@ from src.maze_rl.config import settings
 from src.maze_rl.env import MazeEnv
 
 
-@dataclass
-class EpisodeMetrics:
-    final_score: float
-    steps: int
-    unique_score: float
-
 
 def compute_stats(values: Sequence[float]) -> tuple[float, float]:
     return np.mean(values), np.std(values)
 
 
-def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> EpisodeMetrics:
-    state = env.reset()
+def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> dict:
+    env.reset()
+    state = env.get_state()
     print(f"Training episode started at state {state}")
     while not env.done:
         action = agent.choose_action(state, training=True)
+        if action == 4:
+            env.done = True
+            info = {
+                "final_score": env.unique_score,
+                "steps": env.steps,
+                "unique_score": env.unique_score,
+            }
+            return info
         next_state, reward, done, info = env.step(action)
         agent.update_q_value(state, action, reward, next_state, done)
         state = next_state
     print(f"Training episode finished at state {state}")
-    return EpisodeMetrics(
-        final_score=info["final_score"],
-        steps=env.steps,
-        unique_score=env.unique_score,
-    )
+    return info
 
 
 def run_evaluation_episodes(
     env: MazeEnv, agent: QLearningAgent, num_episodes: int
-) -> list[EpisodeMetrics]:
-    results: list[EpisodeMetrics] = []
+) -> list[dict]:
+    results: list[dict] = []
     for _ in range(num_episodes):
         print(f"Evaluation episode started")
-        state = env.reset()
+        env.reset()
+        state = env.get_state()
         while not env.done:
             action = agent.choose_action(state, training=False)
+            print(f"Action: {action}")
+
+            time.sleep(0)
+            if action == 4:
+                env.done = True
+                state = env.get_state()
+                info = {
+                    "final_score": env.unique_score,
+                    "steps": env.steps,
+                    "unique_score": env.unique_score,
+                }
+                results.append(info)
+                break
             state, _, _, info = env.step(action)
-        results.append(EpisodeMetrics(final_score=info["final_score"], steps=env.steps, unique_score=env.unique_score))
+            print(f"State: {env.get_state()}")
+            print(f"Info: {info}")
+        results.append(info)
         print(f"Evaluation episode finished")
     return results
 
@@ -99,13 +115,13 @@ def main() -> None:
 
     try:
         for episode in range(1, settings.num_episodes + 1):
-            metrics = run_training_episode(env, agent)
+            info = run_training_episode(env, agent)
             episodes_completed = episode
-            recent_scores.append(metrics.final_score)
-            recent_steps.append(metrics.steps)
-            unique_final_scores.add(metrics.final_score)
-            if metrics.final_score > best_score:
-                best_score = metrics.final_score
+            recent_scores.append(info["final_score"])
+            recent_steps.append(info["steps"])
+            unique_final_scores.add(info["final_score"])
+            if info["final_score"] > best_score:
+                best_score = info["final_score"]
                 save_q_table(agent, best_model_path, episode, best_score)
 
             agent.decay_epsilon()
@@ -122,7 +138,7 @@ def main() -> None:
             if settings.eval_frequency > 0 and episode % settings.eval_frequency == 0:
                 print(f"Evaluation started at episode {episode}")
                 eval_metrics = run_evaluation_episodes(env, agent, settings.eval_episodes)
-                eval_scores = [m.final_score for m in eval_metrics]
+                eval_scores = [m["final_score"] for m in eval_metrics]
                 eval_mean, eval_std = compute_stats(eval_scores)
                 print(
                     f"Evaluation after episode {episode}: greedy mean score={eval_mean:.4f} ± {eval_std:.4f} over {len(eval_scores)} episodes"
