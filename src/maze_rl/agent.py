@@ -7,7 +7,7 @@ from typing import Sequence
 
 import numpy as np
 
-from src.maze_rl.env import Coordinate, MazeEnv
+from src.maze_rl.env import AugmentedState, MazeEnv
 
 
 class RandomWalkAgent:
@@ -39,20 +39,20 @@ class QLearningAgent:
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
         self.epsilon = epsilon_start
-        self.num_actions = 4
+        self.num_actions = 5
         self.action_space = tuple(range(self.num_actions))
-        self.q_table: dict[Coordinate, np.ndarray] = {}
+        self.q_table: dict[AugmentedState, np.ndarray] = {}
 
-    def _get_or_init_state_q(self, state: Coordinate) -> np.ndarray:
+    def _get_or_init_state_q(self, state: AugmentedState) -> np.ndarray:
         if state not in self.q_table: # initialize the q-value for the state if it doesn't exist
             self.q_table[state] = np.zeros(self.num_actions, dtype=np.float64)
         return self.q_table[state]
 
-    def get_q_value(self, state: Coordinate, action: int) -> float:
+    def get_q_value(self, state: AugmentedState, action: int) -> float:
         q_values = self._get_or_init_state_q(state) # get the q-value if it exists, otherwise initialize it to all zeros
         return float(q_values[action])
 
-    def choose_action(self, state: Coordinate, training: bool = True) -> int:
+    def choose_action(self, state: AugmentedState, training: bool = True) -> int:
         q_values = self._get_or_init_state_q(state) # get the q-value if it exists, otherwise initialize it to all zeros
 
         if training and np.random.random() < self.epsilon:
@@ -63,10 +63,10 @@ class QLearningAgent:
 
     def update_q_value(
         self,
-        state: Coordinate,
+        state: AugmentedState,
         action: int,
         reward: float,
-        next_state: Coordinate,
+        next_state: AugmentedState,
         done: bool,
     ) -> None:
         current_q = self.get_q_value(state, action)

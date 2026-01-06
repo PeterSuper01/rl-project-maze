@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 Coordinate = Tuple[int, int]
+AugmentedState = Tuple[int, int, bool, bool, bool, bool]
 
 _ACTION_DELTAS: dict[int, Coordinate] = {
     0: (-1, 0),  # up
@@ -50,11 +51,25 @@ class MazeEnv:
         self.steps = 0
         self.done = False
 
-    @property
-    def get_state(self) -> Coordinate:
-        return self._state
+    def _neighbor_visit_flags(self, state: Coordinate | None = None) -> tuple[bool, bool, bool, bool]:
+        state_to_check = state if state is not None else self._state
+        r, c = state_to_check
+        return (
+            (r - 1, c) in self.visited,
+            (r + 1, c) in self.visited,
+            (r, c - 1) in self.visited,
+            (r, c + 1) in self.visited,
+        )
 
-    def step(self, action: int) -> Tuple[Coordinate, float, bool, dict]:
+    def _augment_state(self, state: Coordinate) -> AugmentedState:
+        r, c = state
+        flags = self._neighbor_visit_flags(state)
+        return (r, c, *flags)
+
+    def get_state(self) -> AugmentedState:
+        return self._augment_state(self._state)
+
+    def step(self, action: int) -> Tuple[AugmentedState, float, bool, dict]:
         """Take a step in the grid and return (state, reward, done, info)."""
 
         if self.done:
@@ -69,7 +84,7 @@ class MazeEnv:
                 "steps": self.steps,
                 "final_score": self.final_score(),
             }
-            return self._state, 0.0, True, info
+            return self._augment_state(self._state), 0.0, True, info
 
         self._state = next_state
         self.steps += 1
@@ -90,7 +105,7 @@ class MazeEnv:
         if self.done:
             info["final_score"] = self.final_score()
 
-        return next_state, reward, self.done, info
+        return self._augment_state(next_state), reward, self.done, info
 
     def final_score(self) -> float:
         """Compute the exam score formula once the episode finishes."""
