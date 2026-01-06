@@ -2,38 +2,34 @@
 
 from __future__ import annotations
 
+import csv
 import math
 import pickle
 import time
 from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Sequence
 
 import numpy as np
 
 from src.maze_rl.agent import QLearningAgent
 from src.maze_rl.config import settings
-from src.maze_rl.env import MazeEnv
+from src.maze_rl.env import AugmentedState, MazeEnv
 
-
-
-def compute_stats(values: Sequence[float]) -> tuple[float, float]:
-    return np.mean(values), np.std(values)
 
 
 def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> dict:
     env.reset()
     state = env.get_state()
-    print(f"Training episode started at state {state}")
     while not env.done:
         action = agent.choose_action(state, training=True)
         if action == 4:
             env.done = True
             info = {
-                "final_score": env.unique_score,
                 "steps": env.steps,
                 "unique_score": env.unique_score,
+                "final_score": env.final_score(),
             }
             return info
         next_state, reward, done, info = env.step(action)
@@ -60,9 +56,9 @@ def run_evaluation_episodes(
                 env.done = True
                 state = env.get_state()
                 info = {
-                    "final_score": env.unique_score,
                     "steps": env.steps,
                     "unique_score": env.unique_score,
+                    "final_score": env.final_score(),
                 }
                 results.append(info)
                 break
@@ -74,27 +70,27 @@ def run_evaluation_episodes(
     return results
 
 
-def save_q_table(
-    agent: QLearningAgent, output_path, episode: int, final_score: float
-) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "q_table": agent.q_table,
-        "metadata": {
-            "episode": episode,
-            "final_score": final_score,
-            "saved_at": datetime.now(timezone.utc).isoformat(),
-            "hyperparameters": {
-                "learning_rate": settings.learning_rate,
-                "discount_factor": settings.discount_factor,
-                "epsilon_start": settings.epsilon_start,
-                "epsilon_end": settings.epsilon_end,
-                "epsilon_decay": settings.epsilon_decay,
-            },
-        },
-    }
-    with output_path.open("wb") as handle:
-        pickle.dump(payload, handle)
+def save_q_table_csv(q_table: dict[AugmentedState, np.ndarray], csv_path: Path) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "row",
+                "col",
+                "neighbor_up_visited",
+                "neighbor_down_visited",
+                "neighbor_left_visited",
+                "neighbor_right_visited",
+                "value_up",
+                "value_down",
+                "value_left",
+                "value_right",
+                "value_stay",
+            ]
+        )
+        for state, q_values in sorted(q_table.items()):
+            writer.writerow([*state, *q_values.tolist()])
 
 
 def main() -> None:
@@ -108,43 +104,30 @@ def main() -> None:
     )
     best_score = float("-inf")
     best_model_path = settings.output_dir / "q_table_best.pkl"
-    recent_scores: deque[float] = deque(maxlen=settings.log_frequency)
-    recent_steps: deque[float] = deque(maxlen=settings.log_frequency)
-    unique_final_scores: set[float] = set()
     episodes_completed = 0
 
-    try:
-        for episode in range(1, settings.num_episodes + 1):
-            info = run_training_episode(env, agent)
-            episodes_completed = episode
-            recent_scores.append(info["final_score"])
-            recent_steps.append(info["steps"])
-            unique_final_scores.add(info["final_score"])
-            if info["final_score"] > best_score:
-                best_score = info["final_score"]
-                save_q_table(agent, best_model_path, episode, best_score)
+    for episode in range(1, settings.num_episodes + 1):
+        info = run_training_episode(env, agent)
+        episodes_completed = episode
+        print(f"Training episode {episode} finished with score {info['final_score']}")
+        if info["final_score"] > best_score:
+            best_score = info["final_score"]
+            save_q_table_csv(agent.q_table, settings.output_dir / "q_table_best.csv")
 
-            agent.decay_epsilon()
+        agent.decay_epsilon()
 
-            if settings.log_frequency > 0 and episode % settings.log_frequency == 0:
-                score_mean, score_std = compute_stats(recent_scores)
-                step_mean, step_std = compute_stats(recent_steps)
-                print(
-                    f"Episode {episode} | ε={agent.epsilon:.4f} | recent final score mean={score_mean:.4f} ± {score_std:.4f} | "
-                    f"steps mean={step_mean:.1f} ± {step_std:.1f} | best score={best_score:.4f} | "
-                    f"q-states={len(agent.q_table)} | unique finals={len(unique_final_scores)}"
-                )
+        if episode % settings.log_frequency == 0:
+            print(
+                f"Episode {episode} | epsilon={agent.epsilon:.4f}"
+                f"best score={best_score:.4f}"
+                f"q-states={len(agent.q_table)}"
+            )
 
-            if settings.eval_frequency > 0 and episode % settings.eval_frequency == 0:
-                print(f"Evaluation started at episode {episode}")
-                eval_metrics = run_evaluation_episodes(env, agent, settings.eval_episodes)
-                eval_scores = [m["final_score"] for m in eval_metrics]
-                eval_mean, eval_std = compute_stats(eval_scores)
-                print(
-                    f"Evaluation after episode {episode}: greedy mean score={eval_mean:.4f} ± {eval_std:.4f} over {len(eval_scores)} episodes"
-                )
-    except KeyboardInterrupt:
-        print(f"Training interrupted at episode {episodes_completed}.")
+        if episode % settings.eval_frequency == 0:
+            print(f"Evaluation started at episode {episode}")
+            eval_metrics = run_evaluation_episodes(env, agent, settings.eval_episodes)
+            eval_scores = [m["final_score"] for m in eval_metrics]
+            print(f"Evaluation complete. Mean score={np.mean(eval_scores):.4f}")
 
     print(
         f"Training complete ({episodes_completed} episodes). Best score={best_score:.4f} "
