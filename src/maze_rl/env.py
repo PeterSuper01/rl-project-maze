@@ -8,6 +8,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from src.maze_rl.config import settings
+
 Coordinate = Tuple[int, int]
 AugmentedState = Tuple[int, int, bool, bool, bool, bool]
 
@@ -110,7 +112,7 @@ class MazeEnv:
     def final_score(self) -> float:
         """Compute the exam score formula once the episode finishes."""
 
-        return (self.unique_score**1.2) - (self.steps**1.5)
+        return (self.unique_score**settings.score_exponent) - (self.steps**settings.step_exponent)
 
     def _in_bounds(self, state: Coordinate) -> bool:
         return self.grid_min <= state[0] <= self.grid_max and self.grid_min <= state[1] <= self.grid_max

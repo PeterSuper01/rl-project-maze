@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     maze_path: Path
+    score_exponent: float = 1.2
+    step_exponent: float = 1.5
     num_episodes: int = 1000
     learning_rate: float = 0.1
     discount_factor: float = 0.99
