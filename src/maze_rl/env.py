@@ -48,7 +48,7 @@ class MazeEnv:
         """Reset the environment to the starting cell."""
 
         self._state = self.start
-        self.visited: set[Coordinate] = {self.start}
+        self.visited: tuple[Coordinate, ...] = (self.start,)
         self.unique_score = float(self.grid[self.start])
         self.steps = 0
         self.done = False
@@ -94,7 +94,7 @@ class MazeEnv:
         if next_state not in self.visited:
             reward = float(self.grid[next_state])
             self.unique_score += reward
-            self.visited.add(next_state)
+            self.visited = (*self.visited, next_state)
         else:
             reward = -1.0
 

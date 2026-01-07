@@ -1,5 +1,3 @@
-"""Train a tabular Q-learning agent against the maze environment."""
-
 from __future__ import annotations
 
 import csv
@@ -10,7 +8,7 @@ import numpy as np
 
 from src.maze_rl.agent import QLearningAgent
 from src.maze_rl.config import settings
-from src.maze_rl.env import AugmentedState, MazeEnv
+from src.maze_rl.env import Coordinate, AugmentedState, MazeEnv
 
 
 
@@ -23,7 +21,7 @@ def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> dict:
         agent.update_q_value(state, action, reward, next_state, done)
         state = next_state
     print(f"Training episode finished at state {state}")
-    info["visited"] = tuple(env.visited)
+    info["visited"] = env.visited
     return info
 
 
@@ -91,7 +89,7 @@ def main() -> None:
         if info["final_score"] > best_score:
             best_score = info["final_score"]
             save_q_table_csv(agent.q_table, settings.output_dir / "q_table_best.csv")
-            visited_cells = sorted(info["visited"])
+            visited_cells = info["visited"]
             print(f"Best episode visited {len(visited_cells)} cells: {visited_cells}")
 
         agent.decay_epsilon()
