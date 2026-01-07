@@ -70,7 +70,7 @@ def save_q_table_csv(q_table: dict[AugmentedState, np.ndarray], csv_path: Path) 
 
 
 def main() -> None:
-    env = MazeEnv(grid_path=settings.maze_path / "maze.csv")
+    env = MazeEnv(grid_path=settings.maze_path / "maze_plus_1.csv")
     agent = QLearningAgent(
         learning_rate=settings.learning_rate,
         discount_factor=settings.discount_factor,
@@ -109,6 +109,7 @@ def main() -> None:
 
     print(
         f"Training complete ({episodes_completed} episodes). Best score={best_score:.4f} "
+        f"visited {len(visited_cells)} cells: {visited_cells}"
         f"(saved to {best_model_path})"
     )
 
