@@ -11,7 +11,7 @@ import pandas as pd
 from src.maze_rl.config import settings
 
 Coordinate = Tuple[int, int]
-AugmentedState = Tuple[int, int, bool, bool, bool, bool]
+AugmentedState = Tuple[int, int, tuple[bool, ...]]
 
 _ACTION_DELTAS: dict[int, Coordinate] = {
     0: (-1, 0),  # up
@@ -52,21 +52,20 @@ class MazeEnv:
         self.unique_score = float(self.grid[self.start])
         self.steps = 0
         self.done = False
+        self.path: list[Coordinate] = [self.start]
 
-    def _neighbor_visit_flags(self, state: Coordinate | None = None) -> tuple[bool, bool, bool, bool]:
-        state_to_check = state if state is not None else self._state
-        r, c = state_to_check
-        return (
-            (r - 1, c) in self.visited,
-            (r + 1, c) in self.visited,
-            (r, c - 1) in self.visited,
-            (r, c + 1) in self.visited,
-        )
+    def _flatten_visited_flags(self) -> tuple[bool, ...]:
+        rows, cols = self.grid.shape
+        total_cells = rows * cols
+        flags = [False] * total_cells
+        for row, col in self.visited:
+            flags[row * cols + col] = True
+        return tuple(flags)
 
     def _augment_state(self, state: Coordinate) -> AugmentedState:
         r, c = state
-        flags = self._neighbor_visit_flags(state)
-        return (r, c, *flags)
+        visited_flags = self._flatten_visited_flags()
+        return (r, c, visited_flags)
 
     def get_state(self) -> AugmentedState:
         return self._augment_state(self._state)
@@ -79,24 +78,27 @@ class MazeEnv:
 
         delta = _ACTION_DELTAS[action]
         next_state = (self._state[0] + delta[0], self._state[1] + delta[1])
+
         if not self._in_bounds(next_state) or delta == (0, 0):
             self.done = True
+            reward = 0.0
             info = {
                 "unique_score": self.unique_score,
                 "steps": self.steps,
                 "final_score": self.final_score(),
             }
-            return self._augment_state(self._state), 0.0, True, info
+            return self._augment_state(self._state), reward, self.done, info
 
         self._state = next_state
+        self.path.append(next_state)
         self.steps += 1
 
         if next_state not in self.visited:
-            reward = float(self.grid[next_state])
-            self.unique_score += reward
             self.visited = (*self.visited, next_state)
+            reward = float(self.grid[next_state]) -1
+            self.unique_score += float(self.grid[next_state])
         else:
-            reward = -1.0
+            reward = -1
 
         self.done = self._hits_boundary(next_state)
 

@@ -20,8 +20,8 @@ def run_training_episode(env: MazeEnv, agent: QLearningAgent) -> dict:
         next_state, reward, done, info = env.step(action)
         agent.update_q_value(state, action, reward, next_state, done)
         state = next_state
-    print(f"Training episode finished at state {state}")
-    info["visited"] = env.visited
+    # print(f"Training episode finished at state {state}")
+    info["path"] = env.path
     return info
 
 
@@ -30,19 +30,12 @@ def run_evaluation_episodes(
 ) -> list[dict]:
     results: list[dict] = []
     for _ in range(num_episodes):
-        print(f"Evaluation episode started")
         env.reset()
         state = env.get_state()
         while not env.done:
             action = agent.choose_action(state, training=False)
-            print(f"Action: {action}")
-
-            time.sleep(0)
             state, _, _, info = env.step(action)
-            print(f"State: {env.get_state()}")
-            print(f"Info: {info}")
         results.append(info)
-        print(f"Evaluation episode finished")
     return results
 
 
@@ -54,10 +47,7 @@ def save_q_table_csv(q_table: dict[AugmentedState, np.ndarray], csv_path: Path) 
             [
                 "row",
                 "col",
-                "neighbor_up_visited",
-                "neighbor_down_visited",
-                "neighbor_left_visited",
-                "neighbor_right_visited",
+                "visited_flat",
                 "value_up",
                 "value_down",
                 "value_left",
@@ -66,7 +56,8 @@ def save_q_table_csv(q_table: dict[AugmentedState, np.ndarray], csv_path: Path) 
             ]
         )
         for state, q_values in sorted(q_table.items()):
-            writer.writerow([*state, *q_values.tolist()])
+            visited_mask = "".join("1" if flag else "0" for flag in state[2])
+            writer.writerow([state[0], state[1], visited_mask, *q_values.tolist()])
 
 
 def main() -> None:
@@ -85,19 +76,19 @@ def main() -> None:
     for episode in range(1, settings.num_episodes + 1):
         info = run_training_episode(env, agent)
         episodes_completed = episode
-        print(f"Training episode {episode} finished with score {info['final_score']}")
+        # print(f"Training episode {episode} finished with score {info['final_score']}")
         if info["final_score"] > best_score:
             best_score = info["final_score"]
             save_q_table_csv(agent.q_table, settings.output_dir / "q_table_best.csv")
-            visited_cells = info["visited"]
-            print(f"Best episode visited {len(visited_cells)} cells: {visited_cells}")
+            path_cells = info["path"]
+            # print(f"Best episode visited {len(path_cells)} cells: {path_cells}")
 
         agent.decay_epsilon()
 
         if episode % settings.log_frequency == 0:
             print(
-                f"Episode {episode} | epsilon={agent.epsilon:.4f}"
-                f"best score={best_score:.4f}"
+                f"Episode {episode} | epsilon={agent.epsilon:.4f} |"
+                f"best score={best_score:.4f} |"
                 f"q-states={len(agent.q_table)}"
             )
 
@@ -109,7 +100,7 @@ def main() -> None:
 
     print(
         f"Training complete ({episodes_completed} episodes). Best score={best_score:.4f} "
-        f"visited {len(visited_cells)} cells: {visited_cells}"
+        f"visited {len(path_cells)} cells: {path_cells} "
         f"(saved to {best_model_path})"
     )
 
