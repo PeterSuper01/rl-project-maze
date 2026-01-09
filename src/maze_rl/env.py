@@ -8,7 +8,10 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from src.maze_rl.config import settings
+
 Coordinate = Tuple[int, int]
+AugmentedState = Tuple[int, int, tuple[bool, ...]]
 
 _ACTION_DELTAS: dict[int, Coordinate] = {
     0: (-1, 0),  # up
@@ -45,16 +48,29 @@ class MazeEnv:
         """Reset the environment to the starting cell."""
 
         self._state = self.start
-        self.visited: set[Coordinate] = {self.start}
+        self.visited: tuple[Coordinate, ...] = (self.start,)
         self.unique_score = float(self.grid[self.start])
         self.steps = 0
         self.done = False
+        self.path: list[Coordinate] = [self.start]
 
-    @property
-    def get_state(self) -> Coordinate:
-        return self._state
+    def _flatten_visited_flags(self) -> tuple[bool, ...]:
+        rows, cols = self.grid.shape
+        total_cells = rows * cols
+        flags = [False] * total_cells
+        for row, col in self.visited:
+            flags[row * cols + col] = True
+        return tuple(flags)
 
-    def step(self, action: int) -> Tuple[Coordinate, float, bool, dict]:
+    def _augment_state(self, state: Coordinate) -> AugmentedState:
+        r, c = state
+        visited_flags = self._flatten_visited_flags()
+        return (r, c, visited_flags)
+
+    def get_state(self) -> AugmentedState:
+        return self._augment_state(self._state)
+
+    def step(self, action: int) -> Tuple[AugmentedState, float, bool, dict]:
         """Take a step in the grid and return (state, reward, done, info)."""
 
         if self.done:
@@ -62,24 +78,27 @@ class MazeEnv:
 
         delta = _ACTION_DELTAS[action]
         next_state = (self._state[0] + delta[0], self._state[1] + delta[1])
-        if not self._in_bounds(next_state):
+
+        if not self._in_bounds(next_state) or delta == (0, 0):
             self.done = True
+            reward = 0.0
             info = {
                 "unique_score": self.unique_score,
                 "steps": self.steps,
                 "final_score": self.final_score(),
             }
-            return self._state, 0.0, True, info
+            return self._augment_state(self._state), reward, self.done, info
 
         self._state = next_state
+        self.path.append(next_state)
         self.steps += 1
 
         if next_state not in self.visited:
-            reward = float(self.grid[next_state])
-            self.unique_score += reward
-            self.visited.add(next_state)
+            self.visited = (*self.visited, next_state)
+            reward = float(self.grid[next_state]) -1
+            self.unique_score += float(self.grid[next_state])
         else:
-            reward = -1.0
+            reward = -1
 
         self.done = self._hits_boundary(next_state)
 
@@ -90,12 +109,12 @@ class MazeEnv:
         if self.done:
             info["final_score"] = self.final_score()
 
-        return next_state, reward, self.done, info
+        return self._augment_state(next_state), reward, self.done, info
 
     def final_score(self) -> float:
         """Compute the exam score formula once the episode finishes."""
 
-        return (self.unique_score**1.2) - (self.steps**1.5)
+        return (self.unique_score**settings.score_exponent) - (self.steps**settings.step_exponent)
 
     def _in_bounds(self, state: Coordinate) -> bool:
         return self.grid_min <= state[0] <= self.grid_max and self.grid_min <= state[1] <= self.grid_max
