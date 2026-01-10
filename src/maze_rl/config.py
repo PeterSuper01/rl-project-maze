@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     maze_path: Path
     score_exponent: float = 1.0
     step_exponent: float = 1.0
-    num_episodes: int = 2500
+    num_episodes: int = 25000
     learning_rate: float = 0.3
     discount_factor: float = 0.99
     epsilon_start: float = 1.0

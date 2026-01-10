@@ -9,6 +9,7 @@ import numpy as np
 from src.maze_rl.agent import QLearningAgent
 from src.maze_rl.config import settings
 from src.maze_rl.env import Coordinate, AugmentedState, MazeEnv
+from scripts.visualize_maze import plot_path_on_maze
 
 
 
@@ -102,6 +103,20 @@ def main() -> None:
         f"Training complete ({episodes_completed} episodes). Best score={best_score:.4f} "
         f"visited {len(path_cells)} cells: {path_cells} "
         f"(saved to {best_model_path})"
+    )
+    
+    # Run one final greedy evaluation episode and plot the path
+    env.reset()
+    state = env.get_state()
+    while not env.done:
+        action = agent.choose_action(state, training=False)
+        state, _, _, _ = env.step(action)
+    eval_path = env.path
+    
+    # Plot the evaluation path
+    plot_path_on_maze(
+        path=eval_path,
+        save_path=settings.output_dir / "last_eval_path.png"
     )
 
 
